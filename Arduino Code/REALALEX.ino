@@ -1,3 +1,5 @@
+#include <serialize.h>
+
 #include "packet.h"
 #include "constants.h"
 typedef enum
@@ -17,13 +19,18 @@ volatile TDirection dir = STOP;
 // Number of ticks per revolution from the 
 // wheel encoder.
 
-#define COUNTS_PER_REV      1
+#define COUNTS_PER_REV      192
 
 // Wheel circumference in cm.
 // We will use this to calculate forward/backward distance traveled 
 // by taking revs * WHEEL_CIRC
+//PI, for calculating turn circumference
+//#define PI  3.141592654
+#define WHEEL_CIRC         20.1 
 
-#define WHEEL_CIRC          1
+//Alex's length and breadth in cm
+#define ALEX_LENGTH 18
+#define ALEX_BREADTH 11
 
 // Motor control pins. You need to adjust these till
 // Alex moves in the correct direction
@@ -39,14 +46,14 @@ volatile TDirection dir = STOP;
 // Store the ticks from Alex's left and
 // right encoders.
 volatile unsigned long leftForwardTicks; 
-volatile unsigned long rightForwardtTicks;
+volatile unsigned long rightForwardTicks;
 volatile unsigned long leftReverseTicks; 
 volatile unsigned long rightReverseTicks;
 
 // Store the ticks turns from Alex's left and
 // right encoders.
 volatile unsigned long leftForwardTicksTurns; 
-volatile unsigned long rightForwardtTicksTurns;
+volatile unsigned long rightForwardTicksTurns;
 volatile unsigned long leftReverseTicksTurns; 
 volatile unsigned long rightReverseTicksTurns;
 
@@ -59,6 +66,41 @@ volatile unsigned long rightRevs;
 volatile unsigned long forwardDist;
 volatile unsigned long reverseDist;
 
+
+//Variables to keep track of whether we have moved a commanded distance
+unsigned long deltaDist;
+unsigned long newDist;
+
+//Alex's diagonal. Compute and store once
+float AlexDiagonal = 21.1;
+float AlexCirc = 66.3;
+
+//Variables to keep track of our turning angle
+unsigned long deltaTicks;
+unsigned long targetTicks;
+
+/*
+ * Alex Ultrasonic notes
+ * Gray wire = Trig = pin8 = output
+ * Blue wire = Echo = pin9 = input
+ */
+ pinMode(8, OUTPUT);
+ pinMode(9, INPUT);
+ #define FRONTLIMIT 11 // placeholder 11
+ void ultrasonic () {
+  digitalWrite(8, LOW);
+  delayMicroseconds(2);
+  digitalWrite(8, HIGH);
+  delayMicroseconds(2);
+  digitalWrite(8, LOW);
+  long duration = pulseIn(9, HIGH, 10000);
+  float distance = 330 * pow(10, -4) * (duration / 2);
+  if (distance <= FRONTLIMIT) {
+    stop();
+    reverse(3, 80);
+    sendOK();
+  }
+ }
 
 /*
  * 
@@ -93,6 +135,20 @@ void sendStatus()
   // packetType and command files accordingly, then use sendResponse
   // to send out the packet. See sendMessage on how to use sendResponse.
   //
+  TPacket statusPacket;
+  statusPacket.packetType = PACKET_TYPE_RESPONSE;
+  statusPacket.command = RESP_STATUS;
+  statusPacket.params[0] = leftForwardTicks;
+  statusPacket.params[1] = rightForwardTicks;
+  statusPacket.params[2] = leftReverseTicks;
+  statusPacket.params[3] = rightReverseTicks;
+  statusPacket.params[4] = leftForwardTicksTurns;
+  statusPacket.params[5] = rightForwardTicksTurns;
+  statusPacket.params[6] = leftReverseTicksTurns;
+  statusPacket.params[7] = rightReverseTicksTurns;
+  statusPacket.params[8] = forwardDist;
+  statusPacket.params[9] = reverseDist;
+  sendResponse(&statusPacket);
 }
 
 void sendMessage(const char *message)
@@ -344,22 +400,28 @@ int pwmVal(float speed)
 // continue moving forward indefinitely.
 void forward(float dist, float speed)
 {
+ 
+  if (dist > 0)
+    deltaDist = 0.5*dist;
+  else
+    deltaDist = 9999999;
+  newDist = forwardDist + deltaDist;
+
   dir = FORWARD;
   int val = pwmVal(speed);
-
-  // For now we will ignore dist and move
+  int val2 = 0.9 * pwmVal(speed);
+  // For now we will ignore  dist and move
   // forward indefinitely. We will fix this
   // in Week 9.
 
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-  
-  analogWrite(LF, val);
-  analogWrite(RF, val);
-  analogWrite(LR,0);
-  analogWrite(RR, 0);
 
+  analogWrite(LF, val2);
+  analogWrite(RF, val);
+  analogWrite(LR, 0);
+  analogWrite(RR, 0);
 }
 
 // Reverse Alex "dist" cm at speed "speed".
@@ -369,21 +431,32 @@ void forward(float dist, float speed)
 // continue reversing indefinitely.
 void reverse(float dist, float speed)
 {
+  if (dist > 0)
+    deltaDist = 0.5 * dist;
+  else
+    deltaDist = 9999999;
+  newDist = reverseDist + deltaDist;
+
   dir = BACKWARD;
-
   int val = pwmVal(speed);
-
-  // For now we will ignore dist and 
+  int val2 = pwmVal(speed);
+  // For now we will ignore dist and
   // reverse indefinitely. We will fix this
   // in Week 9.
 
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-  analogWrite(LR, val);
+  analogWrite(LR, val2);
   analogWrite(RR, val);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
+}
+//Compute Delta Ticks function
+// 90 degree = ~ 44
+unsigned long computeDeltaTicks(float ang) {
+  unsigned long ticks = (unsigned long) ((0.28*ang * AlexCirc * COUNTS_PER_REV) / (360.0 * WHEEL_CIRC));
+  return ticks;
 }
 
 // Turn Alex left "ang" degrees at speed "speed".
@@ -393,17 +466,25 @@ void reverse(float dist, float speed)
 // turn left indefinitely.
 void left(float ang, float speed)
 {
-  dir = LEFT;
-  int val = pwmVal(speed);
+ int val = pwmVal(speed);
+  int val2 = 0.9 * pwmVal(speed);
+  dir = RIGHT;
+  if (ang == 0) {
+    deltaTicks = 99999999;
+  } else{
+    deltaTicks = computeDeltaTicks(ang);
+  }
+  targetTicks = rightReverseTicksTurns + deltaTicks;
+  
 
   // For now we will ignore ang. We will fix this in Week 9.
   // We will also replace this code with bare-metal later.
-  // To turn left we reverse the left wheel and move
-  // the right wheel forward.
-  analogWrite(LR, val);
-  analogWrite(RF, val);
-  analogWrite(LF, 0);
+  // To turn right we reverse the right wheel and move
+  // the left wheel forward.
   analogWrite(RR, 0);
+  analogWrite(LF, 0);
+  analogWrite(LR, val2);
+  analogWrite(RF, val);
 }
 
 // Turn Alex right "ang" degrees at speed "speed".
@@ -413,15 +494,24 @@ void left(float ang, float speed)
 // turn right indefinitely.
 void right(float ang, float speed)
 {
+ int val = pwmVal(speed);
+  int val2 = 0.9 * pwmVal(speed);
   dir = RIGHT;
-  int val = pwmVal(speed);
+
+  if (ang == 0) {
+    deltaTicks = 99999999;
+  } else{
+    deltaTicks = computeDeltaTicks(ang);
+  }
+  targetTicks = rightReverseTicksTurns + deltaTicks;
+  
 
   // For now we will ignore ang. We will fix this in Week 9.
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
   analogWrite(RR, val);
-  analogWrite(LF, val);
+  analogWrite(LF, val2);
   analogWrite(LR, 0);
   analogWrite(RF, 0);
 }
@@ -453,7 +543,7 @@ void clearCounters()
   forwardDist=0;
   reverseDist=0; 
   leftForwardTicks=0;
-  rightForwardtTicks=0;
+  rightForwardTicks=0;
   leftReverseTicks=0; 
   rightReverseTicks=0;
 }
@@ -478,6 +568,34 @@ void handleCommand(TPacket *command)
     case COMMAND_FORWARD:
         sendOK();
         forward((float) command->params[0], (float) command->params[1]);
+      break;
+    case COMMAND_REVERSE:
+      sendOK();
+      reverse((float) command->params[0], (float) command->params[1]);
+      break;
+
+    case COMMAND_TURN_LEFT:
+      sendOK();
+      left((float) command->params[0], (float) command->params[1]);
+      break;
+
+    case COMMAND_TURN_RIGHT:
+      sendOK();
+      right((float) command->params[0], (float) command->params[1]);
+      break;
+
+    case COMMAND_STOP:
+      sendOK();
+      stop();
+      break;
+
+    case COMMAND_GET_STATS:
+      sendStatus();
+      break;
+
+    case COMMAND_CLEAR_STATS:
+      clearOneCounter(command->params[0]);
+      sendOK();
       break;
 
     /*
@@ -567,8 +685,6 @@ void loop() {
 
 // Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
 
- forward(0, 100);
-
 // Uncomment the code below for Week 9 Studio 2
 
 
@@ -577,18 +693,70 @@ void loop() {
 
   TResult result = readPacket(&recvPacket);
   
-  if(result == PACKET_OK)
+  if(result == PACKET_OK) {
     handlePacket(&recvPacket);
-  else
+  } else {
     if(result == PACKET_BAD)
     {
       sendBadPacket();
-    }
-    else
+    } else {
       if(result == PACKET_CHECKSUM_BAD)
       {
         sendBadChecksum();
       } 
-      
-      
+    }
+  }
+  if (deltaDist > 0)
+  {
+    if (dir == FORWARD)
+    {
+      if (forwardDist > newDist)
+      {
+        deltaDist = 0;
+        newDist = 0;
+        stop();
+      }
+    }
+    else if (dir == BACKWARD)
+    {
+      if (reverseDist > newDist)
+      {
+        deltaDist = 0;
+        newDist = 0;
+        stop();
+      }
+    }
+    else if (dir == STOP)
+    {
+      deltaDist = 0;
+      newDist = 0;
+      stop();
+    }
+  }
+
+    //check leftReverseTicksTurns/rightReverseTicksTurns has exceeded targetTicks, in which case we stop:
+
+  if (deltaTicks > 0) { // compute angle > 0
+    if (dir == LEFT) {
+      Serial.print("left");
+      if (leftReverseTicksTurns >= targetTicks) {
+        Serial.print("leftexceed");
+        deltaTicks = 0;
+        targetTicks = 0;
+        stop();
+      }
+  
+    } else if (dir == RIGHT) {
+      if (rightReverseTicksTurns >= targetTicks) {
+        deltaTicks = 0;
+        targetTicks = 0;
+        stop();
+      }
+    } else if (dir == STOP) {
+      deltaTicks = 0;
+      targetTicks = 0;
+      stop();
+    }
+  
+  }
 }

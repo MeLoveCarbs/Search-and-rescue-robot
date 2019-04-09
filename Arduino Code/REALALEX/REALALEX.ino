@@ -1,7 +1,7 @@
 #include <serialize.h>
-
 #include "packet.h"
 #include "constants.h"
+
 typedef enum
 {
    STOP=0,
@@ -10,6 +10,12 @@ typedef enum
    LEFT=3,
    RIGHT=4,
 } TDirection;
+
+
+char ultramsg[] = "Forward too close!";
+char irmsg[] = "too close at the sides";
+int ultraflag = 0;
+volatile int irflag;
 
 volatile TDirection dir = STOP;
 /*
@@ -84,7 +90,7 @@ unsigned long targetTicks;
  * Gray wire = Trig = pin8 = output
  * Blue wire = Echo = pin9 = input
  */
- pinMode(8, OUTPUT);
+ /*pinMode(8, OUTPUT);
  pinMode(9, INPUT);
  #define FRONTLIMIT 11 // placeholder 11
  void ultrasonic () {
@@ -290,6 +296,16 @@ void setupEINT()
   EICRA = 0b00001010;
   EIMSK = 0b00000011;
 }
+
+//set up pinchange interrupts register
+void setupPCICR(){
+ //pinchange interrupt set
+  PCICR |= 0b00000011;
+  
+  //mask
+  PCMSK1 |= 0b00001100;
+}
+
 
 // Implement the external interrupt ISRs below.
 // INT0 ISR should call leftISR while INT1 ISR
@@ -650,6 +666,7 @@ void setup() {
 
   cli();
   setupEINT();
+  setupPCICR();
   setupSerial();
   startSerial();
   setupMotors();
@@ -657,6 +674,8 @@ void setup() {
   enablePullups();
   initializeState();
   sei();
+  pinMode(8, OUTPUT);
+  pinMode(9, INPUT);
 }
 
 void handlePacket(TPacket *packet)
@@ -759,4 +778,32 @@ void loop() {
     }
   
   }
+  
+  //IR sensors ======================================================
+  int LeftIR = analogRead(A2); 
+  int RightIR = analogRead(A3);
+
+  if(irflag == 1){
+ 
+    sendMessage(irmsg);
+  }
+
+  //Ultrasonic sensors ===============================================
+  digitalWrite(8, LOW);
+  delayMicroseconds(2);
+  digitalWrite(8, HIGH);
+  delayMicroseconds(2);
+  digitalWrite(8, LOW);
+  long duration = pulseIn(9, HIGH, 10000);
+  float distance = 330 * pow(10, -4) * (duration / 2);
+  
+  if (distance <= 4) {
+   stop();
+   reverse(4, 80);
+   sendMessage(ultramsg);
+   if (ultraflag == 0) {
+    sendMessage(ultramsg);
+    ultraflag = 1;
+   }
+   }
 }

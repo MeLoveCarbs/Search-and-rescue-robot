@@ -424,7 +424,7 @@ void forward(float dist, float speed)
   newDist = forwardDist + deltaDist;
 
   dir = FORWARD;
-  int val = pwmVal(speed);
+  int val = 0.8 * pwmVal(speed);
   int val2 = 0.9 * pwmVal(speed);
   // For now we will ignore  dist and move
   // forward indefinitely. We will fix this
@@ -438,6 +438,10 @@ void forward(float dist, float speed)
   analogWrite(RF, val);
   analogWrite(LR, 0);
   analogWrite(RR, 0);
+}
+
+ISR(PCINT1_vect){
+  irflag = 1- irflag;
 }
 
 // Reverse Alex "dist" cm at speed "speed".
@@ -454,7 +458,7 @@ void reverse(float dist, float speed)
   newDist = reverseDist + deltaDist;
 
   dir = BACKWARD;
-  int val = pwmVal(speed);
+  int val = 0.8 * pwmVal(speed);
   int val2 = pwmVal(speed);
   // For now we will ignore dist and
   // reverse indefinitely. We will fix this
@@ -482,7 +486,7 @@ unsigned long computeDeltaTicks(float ang) {
 // turn left indefinitely.
 void left(float ang, float speed)
 {
- int val = pwmVal(speed);
+ int val = 0.8 * pwmVal(speed);
   int val2 = 0.9 * pwmVal(speed);
   dir = RIGHT;
   if (ang == 0) {
@@ -510,7 +514,7 @@ void left(float ang, float speed)
 // turn right indefinitely.
 void right(float ang, float speed)
 {
- int val = pwmVal(speed);
+ int val = 0.8 * pwmVal(speed);
   int val2 = 0.9 * pwmVal(speed);
   dir = RIGHT;
 
@@ -676,6 +680,11 @@ void setup() {
   sei();
   pinMode(8, OUTPUT);
   pinMode(9, INPUT);
+  //forward(5, 100); - right wheel too strong
+  //reverse(5, 100); - right wheel too strong
+  //left(90, 100); -too much
+  //right(90, 100);
+  
 }
 
 void handlePacket(TPacket *packet)
@@ -757,9 +766,7 @@ void loop() {
 
   if (deltaTicks > 0) { // compute angle > 0
     if (dir == LEFT) {
-      Serial.print("left");
       if (leftReverseTicksTurns >= targetTicks) {
-        Serial.print("leftexceed");
         deltaTicks = 0;
         targetTicks = 0;
         stop();
@@ -797,7 +804,7 @@ void loop() {
   long duration = pulseIn(9, HIGH, 10000);
   float distance = 330 * pow(10, -4) * (duration / 2);
   
-  if (distance <= 4) {
+  /*if (distance <= 4) {
    stop();
    reverse(4, 80);
    sendMessage(ultramsg);
@@ -805,5 +812,8 @@ void loop() {
     sendMessage(ultramsg);
     ultraflag = 1;
    }
-   }
+   }*/
+   Serial.println(duration);
+   Serial.println(distance);
+   
 }

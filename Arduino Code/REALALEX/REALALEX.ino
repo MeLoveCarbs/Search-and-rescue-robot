@@ -788,32 +788,31 @@ void loop() {
   
   //IR sensors ======================================================
   int LeftIR = analogRead(A2); 
-  int RightIR = analogRead(A3);
+  //int RightIR = analogRead(A3);
 
   if(irflag == 1){
  
     sendMessage(irmsg);
   }
 
-  //Ultrasonic sensors ===============================================
+ //Ultrasonic sensors ===============================================
   digitalWrite(8, LOW);
   delayMicroseconds(2);
   digitalWrite(8, HIGH);
   delayMicroseconds(2);
   digitalWrite(8, LOW);
-  long duration = pulseIn(9, HIGH, 10000);
+  long duration = pulseIn(9, HIGH, 5000);
   float distance = 330 * pow(10, -4) * (duration / 2);
   
-  /*if (distance <= 4) {
+  if (distance <= 4) {
    stop();
-   reverse(4, 80);
+   reverse(2, 80);
    sendMessage(ultramsg);
    if (ultraflag == 0) {
     sendMessage(ultramsg);
     ultraflag = 1;
    }
-   }*/
-   Serial.println(duration);
+   }
    Serial.println(distance);
    
 }

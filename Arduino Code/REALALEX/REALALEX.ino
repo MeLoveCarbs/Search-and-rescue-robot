@@ -813,6 +813,5 @@ void loop() {
     ultraflag = 1;
    }
    }
-   Serial.println(distance);
-   
+      
 }

@@ -231,6 +231,11 @@ void sendCommand(char command)
 		case 'Q':
 			exitFlag=1;
 			break;
+		case 't':
+		case 'T':
+			commandPacket.command = COMMAND_COLOUR;
+			sendPacket(&commandPacket);
+			break;
 
 		default:
 			printf("Bad command\n");
@@ -262,7 +267,7 @@ int main()
 	while(!exitFlag)
 	{
 		char ch;
-		printf("Command (f=forward, b=reverse, l=turn left, r=turn right, s=stop, c=clear stats, g=get stats q=exit)\n");
+		printf("Command (f=forward, b=reverse, l=turn left, r=turn right, s=stop, c=clear stats, g=get stats, t=colour test, q=exit)\n");
 		scanf("%c", &ch);
 
 		// Purge extraneous characters from input stream

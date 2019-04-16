@@ -1,4 +1,5 @@
 #include <serialize.h>
+#include <util/delay.h>
 #include "packet.h"
 #include "constants.h"
 
@@ -13,9 +14,10 @@ typedef enum
 
 
 char ultramsg[] = "Forward too close!";
-char irmsg[] = "too close at the sides";
+char irmsg[] = "Side too close!";
 int ultraflag = 0;
-volatile int irflag;
+volatile int irflag = 0;
+volatile int uflag = 0;
 
 volatile TDirection dir = STOP;
 /*
@@ -45,6 +47,11 @@ volatile TDirection dir = STOP;
 #define RF                  10  // Right forward pin
 #define RR                  11  // Right reverse pin
 
+#define S0 4
+#define S1 7
+#define S2 12
+#define S3 13
+#define sensorOut A5
 /*
  *    Alex's State Variables
  */
@@ -84,29 +91,6 @@ float AlexCirc = 66.3;
 //Variables to keep track of our turning angle
 unsigned long deltaTicks;
 unsigned long targetTicks;
-
-/*
- * Alex Ultrasonic notes
- * Gray wire = Trig = pin8 = output
- * Blue wire = Echo = pin9 = input
- */
- /*pinMode(8, OUTPUT);
- pinMode(9, INPUT);
- #define FRONTLIMIT 11 // placeholder 11
- void ultrasonic () {
-  digitalWrite(8, LOW);
-  delayMicroseconds(2);
-  digitalWrite(8, HIGH);
-  delayMicroseconds(2);
-  digitalWrite(8, LOW);
-  long duration = pulseIn(9, HIGH, 10000);
-  float distance = 330 * pow(10, -4) * (duration / 2);
-  if (distance <= FRONTLIMIT) {
-    stop();
-    reverse(3, 80);
-    sendOK();
-  }
- }
 
 /*
  * 
@@ -418,14 +402,13 @@ void forward(float dist, float speed)
 {
  
   if (dist > 0)
-    deltaDist = 0.5*dist;
+    deltaDist = dist;
   else
     deltaDist = 9999999;
   newDist = forwardDist + deltaDist;
 
   dir = FORWARD;
-  int val = 0.8 * pwmVal(speed);
-  int val2 = 0.9 * pwmVal(speed);
+  int val = pwmVal(speed);
   // For now we will ignore  dist and move
   // forward indefinitely. We will fix this
   // in Week 9.
@@ -434,14 +417,18 @@ void forward(float dist, float speed)
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
 
-  analogWrite(LF, val2);
-  analogWrite(RF, val);
+  analogWrite(LF, val);
+  analogWrite(RF, (0.97 * val));
   analogWrite(LR, 0);
   analogWrite(RR, 0);
 }
 
 ISR(PCINT1_vect){
-  irflag = 1- irflag;
+  if (irflag == 0) {
+    stop();
+     sendMessage(irmsg);
+  }
+  irflag = 1; 
 }
 
 // Reverse Alex "dist" cm at speed "speed".
@@ -452,14 +439,13 @@ ISR(PCINT1_vect){
 void reverse(float dist, float speed)
 {
   if (dist > 0)
-    deltaDist = 0.5 * dist;
+    deltaDist = dist;
   else
     deltaDist = 9999999;
   newDist = reverseDist + deltaDist;
 
   dir = BACKWARD;
-  int val = 0.8 * pwmVal(speed);
-  int val2 = pwmVal(speed);
+  int val = pwmVal(speed);
   // For now we will ignore dist and
   // reverse indefinitely. We will fix this
   // in Week 9.
@@ -467,15 +453,14 @@ void reverse(float dist, float speed)
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-  analogWrite(LR, val2);
-  analogWrite(RR, val);
+  analogWrite(LR, val);
+  analogWrite(RR,  val);
   analogWrite(LF, 0);
   analogWrite(RF, 0);
 }
 //Compute Delta Ticks function
-// 90 degree = ~ 44
 unsigned long computeDeltaTicks(float ang) {
-  unsigned long ticks = (unsigned long) ((0.28*ang * AlexCirc * COUNTS_PER_REV) / (360.0 * WHEEL_CIRC));
+  unsigned long ticks = (unsigned long) ((0.7 * ang * AlexCirc * COUNTS_PER_REV) / (360.0 * WHEEL_CIRC));
   return ticks;
 }
 
@@ -486,15 +471,14 @@ unsigned long computeDeltaTicks(float ang) {
 // turn left indefinitely.
 void left(float ang, float speed)
 {
- int val = 0.8 * pwmVal(speed);
-  int val2 = 0.9 * pwmVal(speed);
+ int val = pwmVal(speed);
   dir = RIGHT;
   if (ang == 0) {
     deltaTicks = 99999999;
   } else{
     deltaTicks = computeDeltaTicks(ang);
   }
-  targetTicks = rightReverseTicksTurns + deltaTicks;
+  targetTicks = rightReverseTicksTurns + (float)(0.9 * deltaTicks);
   
 
   // For now we will ignore ang. We will fix this in Week 9.
@@ -503,7 +487,7 @@ void left(float ang, float speed)
   // the left wheel forward.
   analogWrite(RR, 0);
   analogWrite(LF, 0);
-  analogWrite(LR, val2);
+  analogWrite(LR, val);
   analogWrite(RF, val);
 }
 
@@ -514,8 +498,7 @@ void left(float ang, float speed)
 // turn right indefinitely.
 void right(float ang, float speed)
 {
- int val = 0.8 * pwmVal(speed);
-  int val2 = 0.9 * pwmVal(speed);
+ int val = (pwmVal(speed));
   dir = RIGHT;
 
   if (ang == 0) {
@@ -523,7 +506,7 @@ void right(float ang, float speed)
   } else{
     deltaTicks = computeDeltaTicks(ang);
   }
-  targetTicks = rightReverseTicksTurns + deltaTicks;
+  targetTicks = rightReverseTicksTurns + (float)(0.6 * deltaTicks);
   
 
   // For now we will ignore ang. We will fix this in Week 9.
@@ -531,7 +514,7 @@ void right(float ang, float speed)
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
   analogWrite(RR, val);
-  analogWrite(LF, val2);
+  analogWrite(LF, val);
   analogWrite(LR, 0);
   analogWrite(RF, 0);
 }
@@ -545,7 +528,39 @@ void stop()
   analogWrite(RF, 0);
   analogWrite(RR, 0);
 }
-
+  char redmsg[] = "Red object!";
+  char greenmsg[] = "Green object";
+  char whitemsg[] = "White object";
+  char nothingmsg[] = "No object";
+void colour()
+{
+  int redfreq = 0;
+  int greenfreq = 0;
+  for (int i = 0; i < 50; i++) {
+  digitalWrite(S2,LOW);
+  digitalWrite(S3,LOW);
+  // Reading the output frequency
+  redfreq += pulseIn(sensorOut, 0);
+  digitalWrite(S2,HIGH);
+  digitalWrite(S3,HIGH);
+  // Reading the output frequency
+  greenfreq += pulseIn(sensorOut, 0);
+  }
+  redfreq /= 50;
+  greenfreq /= 50;
+  if (redfreq <= 200 && greenfreq <= 200) {
+    if ((redfreq - greenfreq) > 10) {
+      sendMessage(greenmsg);
+    } else if ((greenfreq - redfreq) > 6) {
+      sendMessage(redmsg);
+    } else {
+      sendMessage(whitemsg);
+    }
+    
+  } else {
+    sendMessage(nothingmsg);
+  }
+}
 /*
  * Alex's setup and run codes
  * 
@@ -618,8 +633,13 @@ void handleCommand(TPacket *command)
       sendOK();
       break;
 
+    case COMMAND_COLOUR:
+      colour();
+      sendOK();
+      break;
+
     /*
-     * Implement code for other commands here.
+     * Implement code for other commands here.fo
      * 
      */
         
@@ -680,11 +700,15 @@ void setup() {
   sei();
   pinMode(8, OUTPUT);
   pinMode(9, INPUT);
-  //forward(5, 100); - right wheel too strong
-  //reverse(5, 100); - right wheel too strong
-  //left(90, 100); -too much
-  //right(90, 100);
-  
+  pinMode(S0, OUTPUT);
+  pinMode(S1, OUTPUT);
+  pinMode(S2, OUTPUT);
+  pinMode(S3, OUTPUT);
+  pinMode(sensorOut, INPUT);
+
+  // Setting frequency-scaling to 20%
+  digitalWrite(S0,HIGH);
+  digitalWrite(S1,LOW);
 }
 
 void handlePacket(TPacket *packet)
@@ -743,6 +767,8 @@ void loop() {
         deltaDist = 0;
         newDist = 0;
         stop();
+        uflag = 0;
+        irflag = 0;
       }
     }
     else if (dir == BACKWARD)
@@ -752,6 +778,8 @@ void loop() {
         deltaDist = 0;
         newDist = 0;
         stop();
+        uflag = 0;
+        irflag = 0;
       }
     }
     else if (dir == STOP)
@@ -759,6 +787,8 @@ void loop() {
       deltaDist = 0;
       newDist = 0;
       stop();
+      uflag = 0;
+      irflag = 0;
     }
   }
 
@@ -770,6 +800,8 @@ void loop() {
         deltaTicks = 0;
         targetTicks = 0;
         stop();
+        uflag = 0;
+        irflag = 0;
       }
   
     } else if (dir == RIGHT) {
@@ -777,40 +809,40 @@ void loop() {
         deltaTicks = 0;
         targetTicks = 0;
         stop();
+        uflag = 0;
+        irflag = 0;
       }
     } else if (dir == STOP) {
       deltaTicks = 0;
       targetTicks = 0;
       stop();
+      uflag = 0;
+      irflag = 0;
     }
   
   }
   
   //IR sensors ======================================================
   int LeftIR = analogRead(A2); 
-  //int RightIR = analogRead(A3);
-
-  if(irflag == 1){
- 
-    sendMessage(irmsg);
-  }
-
+  int RightIR = analogRead(A3);
  //Ultrasonic sensors ===============================================
+ long duration = 0;
+ float distance = 0;
+ for (int i = 0; i < 3; i ++) {
   digitalWrite(8, LOW);
-  delayMicroseconds(2);
+  _delay_ms(0.002);
   digitalWrite(8, HIGH);
-  delayMicroseconds(2);
+  _delay_ms(0.002);
   digitalWrite(8, LOW);
-  long duration = pulseIn(9, HIGH, 5000);
-  float distance = 330 * pow(10, -4) * (duration / 2);
-  
-  if (distance <= 4) {
-   stop();
-   reverse(2, 80);
-   sendMessage(ultramsg);
-   if (ultraflag == 0) {
+  duration = pulseIn(9, HIGH, 5000);
+  distance += 330 * pow(10, -4) * (duration / 2);
+ }
+  distance /= 3;
+  if (distance <= 4 && distance >= 1) {
+   if (uflag== 0) {
+    stop();
     sendMessage(ultramsg);
-    ultraflag = 1;
+    uflag = 1;
    }
    }
       

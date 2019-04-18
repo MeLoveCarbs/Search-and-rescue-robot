@@ -418,14 +418,14 @@ void forward(float dist, float speed)
   // This will be replaced later with bare-metal code.
 
   analogWrite(LF, val);
-  analogWrite(RF, (0.97 * val));
+  analogWrite(RF, (0.95 * val));
   analogWrite(LR, 0);
   analogWrite(RR, 0);
 }
 
 ISR(PCINT1_vect){
   if (irflag == 0) {
-    stop();
+    //stop();
      sendMessage(irmsg);
   }
   irflag = 1; 
@@ -454,7 +454,7 @@ void reverse(float dist, float speed)
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   analogWrite(LR, val);
-  analogWrite(RR,  val);
+  analogWrite(RR,  (0.85 * val));
   analogWrite(LF, 0);
   analogWrite(RF, 0);
 }
@@ -478,7 +478,7 @@ void left(float ang, float speed)
   } else{
     deltaTicks = computeDeltaTicks(ang);
   }
-  targetTicks = rightReverseTicksTurns + (float)(0.9 * deltaTicks);
+  targetTicks = rightReverseTicksTurns + (float)(0.8 * deltaTicks);
   
 
   // For now we will ignore ang. We will fix this in Week 9.
@@ -528,10 +528,11 @@ void stop()
   analogWrite(RF, 0);
   analogWrite(RR, 0);
 }
-  char redmsg[] = "Red object!";
+  char redmsg[] = "Red object";
   char greenmsg[] = "Green object";
   char whitemsg[] = "White object";
   char nothingmsg[] = "No object";
+  char trymsg[] = "Try again";
 void colour()
 {
   int redfreq = 0;
@@ -548,7 +549,29 @@ void colour()
   }
   redfreq /= 50;
   greenfreq /= 50;
-  if (redfreq <= 200 && greenfreq <= 200) {
+  float ratio = (float)redfreq / (float)greenfreq;
+  /*if(redfreq < 140 && greenfreq < 150) {
+    if (greenfreq - redfreq >= 8) {
+      sendMessage(whitemsg);
+    } 
+  } else {
+    if ((greenfreq - redfreq) >= 40) {
+      sendMessage(redmsg);
+    } else {
+      sendMessage(nothingmsg);
+    }
+  }*/
+   if (ratio < 0.7 && redfreq >= 120) {
+    sendMessage(redmsg);
+  } else if ((greenfreq >= 170 && ratio > 0.85) || ratio >= 1.0) {
+    sendMessage(greenmsg);
+  } else if ((redfreq - greenfreq <= 7) || (greenfreq - redfreq <= 7)) {
+    sendMessage(whitemsg);
+  } else {
+    sendMessage(trymsg);
+  }
+  }
+ /* if (redfreq <= 200 && greenfreq <= 200) {
     if ((redfreq - greenfreq) > 10) {
       sendMessage(greenmsg);
     } else if ((greenfreq - redfreq) > 6) {
@@ -559,8 +582,8 @@ void colour()
     
   } else {
     sendMessage(nothingmsg);
-  }
-}
+  }*/
+
 /*
  * Alex's setup and run codes
  * 
@@ -689,6 +712,7 @@ void setup() {
   // put your setup code here, to run once:
 
   cli();
+  WDT_off();
   setupEINT();
   setupPCICR();
   setupSerial();
@@ -709,6 +733,23 @@ void setup() {
   // Setting frequency-scaling to 20%
   digitalWrite(S0,HIGH);
   digitalWrite(S1,LOW);
+
+  // Power saving
+  setupPowerSaving();
+}
+
+void WDT_off()
+{
+  MCUSR &= ~(1<<WDRF);
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+  WDTCSR = 0x00;
+}
+
+void setupPowerSaving() 
+{
+  ADCSRA &= 0b01111111; // off adc
+  PRR |= 0b10000001;
+  
 }
 
 void handlePacket(TPacket *packet)
@@ -828,7 +869,7 @@ void loop() {
  //Ultrasonic sensors ===============================================
  long duration = 0;
  float distance = 0;
- for (int i = 0; i < 3; i ++) {
+ //for (int i = 0; i < 3; i ++) {
   digitalWrite(8, LOW);
   _delay_ms(0.002);
   digitalWrite(8, HIGH);
@@ -836,11 +877,11 @@ void loop() {
   digitalWrite(8, LOW);
   duration = pulseIn(9, HIGH, 5000);
   distance += 330 * pow(10, -4) * (duration / 2);
- }
-  distance /= 3;
+ //}
+  //distance /= 3;
   if (distance <= 4 && distance >= 1) {
    if (uflag== 0) {
-    stop();
+    //stop();
     sendMessage(ultramsg);
     uflag = 1;
    }

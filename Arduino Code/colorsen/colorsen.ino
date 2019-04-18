@@ -20,30 +20,28 @@ void setup() {
 }
 void loop() {
   
-  // Setting red filtered photodiodes to be read
+  int redfreq = 0;
+  int greenfreq = 0;
+  for (int i = 0; i < 50; i++) {
   digitalWrite(S2,LOW);
   digitalWrite(S3,LOW);
   // Reading the output frequency
-  frequency = pulseIn(sensorOut, 0);
-  //Remaping the value of the frequency to the RGB Model of 0 to 255
-  //frequency = map(frequency, -900,-120,255,0);
-  // Printing the value on the serial monitor
-  Serial.print("R= ");//printing name
-  Serial.print(frequency);//printing RED color frequency
-  Serial.print("  ");
-  delay(100);
-  
-  // Setting Green filtered photodiodes to be read
+  redfreq += pulseIn(sensorOut, 0);
   digitalWrite(S2,HIGH);
   digitalWrite(S3,HIGH);
   // Reading the output frequency
-  frequency = pulseIn(sensorOut, 0);
-  //Remaping the value of the frequency to the RGB Model of 0 to 255
-  //frequency = map(frequency, 0,260,255,0);
-  // Printing the value on the serial monitor
+  greenfreq += pulseIn(sensorOut, 0);
+  }
+  redfreq /= 50;
+  greenfreq /= 50;
+  float ratio = (float)redfreq / (float)greenfreq;
+  Serial.print("R= ");
+  Serial.print(redfreq);
+  Serial.print(" ");
   Serial.print("G= ");//printing name
-  Serial.print(frequency);//printing RED color frequency
-  Serial.println("  ");
+  Serial.print(greenfreq);//printing RED color frequency
+  Serial.print("  ");
+  Serial.println(ratio);
   delay(100);
 
 /* white is 70, 22

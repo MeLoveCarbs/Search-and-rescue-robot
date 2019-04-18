@@ -530,7 +530,7 @@ void stop()
 }
   char redmsg[] = "Red object";
   char greenmsg[] = "Green object";
-  char whitemsg[] = "White object";
+  //char trymsg[] = "White object";
   char nothingmsg[] = "No object";
   char trymsg[] = "Try again";
 void colour()
@@ -549,10 +549,12 @@ void colour()
   }
   redfreq /= 50;
   greenfreq /= 50;
-  float ratio = (float)redfreq / (float)greenfreq;
+  //map(redfreq, 80, 100, 255, 0);
+  //map(greenfreq, 200, 130, 255, 0);
+  float ratio = (float)redfreq / (float)greenfreq; 
   /*if(redfreq < 140 && greenfreq < 150) {
     if (greenfreq - redfreq >= 8) {
-      sendMessage(whitemsg);
+      sendMessage(trymsg);
     } 
   } else {
     if ((greenfreq - redfreq) >= 40) {
@@ -561,28 +563,32 @@ void colour()
       sendMessage(nothingmsg);
     }
   }*/
-   if (ratio < 0.7 && redfreq >= 120) {
+  
+   /*if (ratio < 0.7) {
     sendMessage(redmsg);
-  } else if ((greenfreq >= 170 && ratio > 0.85) || ratio >= 1.0) {
+  } else if ((greenfreq >= 140 && ratio > 0.85) ) {
     sendMessage(greenmsg);
   } else if ((redfreq - greenfreq <= 7) || (greenfreq - redfreq <= 7)) {
-    sendMessage(whitemsg);
+    sendMessage(trymsg);
   } else {
     sendMessage(trymsg);
   }
   }
- /* if (redfreq <= 200 && greenfreq <= 200) {
-    if ((redfreq - greenfreq) > 10) {
-      sendMessage(greenmsg);
-    } else if ((greenfreq - redfreq) > 6) {
+  */
+  
+ // if (redfreq <= 200 && greenfreq <= 200) {
+    if ((greenfreq - redfreq) >= 20) {
       sendMessage(redmsg);
+    } else if ((greenfreq - redfreq) < 5 || redfreq - greenfreq < 5) {
+      sendMessage(greenmsg);
     } else {
-      sendMessage(whitemsg);
+      sendMessage(trymsg);
     }
+}
     
-  } else {
-    sendMessage(nothingmsg);
-  }*/
+  //} else {
+   // sendMessage(nothingmsg);
+  
 
 /*
  * Alex's setup and run codes
@@ -807,9 +813,11 @@ void loop() {
       {
         deltaDist = 0;
         newDist = 0;
-        stop();
         uflag = 0;
         irflag = 0;
+        stop();
+        //uflag = 0;
+        //irflag = 0;
       }
     }
     else if (dir == BACKWARD)
@@ -879,9 +887,9 @@ void loop() {
   distance += 330 * pow(10, -4) * (duration / 2);
  //}
   //distance /= 3;
-  if (distance <= 4 && distance >= 1) {
+  if (distance <= 1.5 && distance >= 1) {
    if (uflag== 0) {
-    //stop();
+    stop();
     sendMessage(ultramsg);
     uflag = 1;
    }

@@ -1,4 +1,4 @@
-##Search and rescue project for our final project 
+## Search and rescue project for our final project 
 
 Please take a look at our report to understand more about the features of what our miniature search and rescue robot can do!
 

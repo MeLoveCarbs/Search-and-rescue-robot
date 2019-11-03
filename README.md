@@ -1,4 +1,5 @@
-# CG1112-Final-Project
-# RULE NUMBER 1 - COMMIT FILES WITH USEFUL MESSAGES. For eg, what changes you made or which code you removed. (Accomodate easy back-tracking of bugs.
-# RULE NUMBER 2 - Follow rule number 1.
-# RULE NUMBER 3 - HAVE FUN!
+Search and rescue project for our final project 
+
+Please take a look at our report to understand more about the features of what our miniature search and rescue robot can do!
+![RPlidar using hector slam algorithm](https://github.com/MeLoveCarbs/Search-and-rescue-robot/blob/master/eg_image1.PNG)
+![Our raspberry pi controlled robot!](https://github.com/MeLoveCarbs/Search-and-rescue-robot/blob/master/eg_image2.PNG)
